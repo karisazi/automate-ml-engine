@@ -1,7 +1,15 @@
 import streamlit as st
 import pandas as pd
+import matplotlib.pyplot as plt
 import os 
 from automl_forecasting import H2OModel
+import plot
+import warnings
+import locale
+locale.setlocale(locale.LC_ALL, 'en_GB.UTF-8')
+# import locale
+# locale.setlocale(locale.LC_ALL, "de_DE")
+warnings.filterwarnings('ignore')
 
 # info feature
 with st.expander(
@@ -24,7 +32,6 @@ with st.expander(
 # read saved data from local
 if os.path.exists('./dataset.csv'): 
     df = pd.read_csv('dataset.csv', index_col=None)
-    st.title('Data')
 
 
 with st.sidebar: 
@@ -40,50 +47,42 @@ with st.sidebar.expander("Dataset", expanded=True):
     if file: 
         df = pd.read_csv(file, index_col=None)
         df.to_csv('dataset.csv', index=None)
-    
-        # y_target = st.selectbox('Choose the Target Column', df.columns)
         
 # Column names
 with st.sidebar.expander("Columns", expanded=True):
-    # date_col, target_col = input_columns(config, readme, df, load_options)
-    # df = format_date_and_target(df, date_col, target_col, config, load_options)
     date_col = st.selectbox("Date column",sorted(df.columns))
     target_col = st.selectbox("Target column",sorted(set(df.columns) - {date_col}))
-    df = pd.read_csv('dataset.csv',index_col=df.columns.get_loc(date_col))
 
 
 st.sidebar.title("2. Processing")
 if st.sidebar.checkbox(
             "Build model from data", False
         ):
+    df = pd.read_csv('dataset.csv',index_col=df.columns.get_loc(date_col))
+    st.write(df)
     # run model automl
     automl = H2OModel(df, target_col)
     automl.run_modelling()
+    # st.dataframe(automl.leaderboard.as_data_frame())
     
     st.title('Prediction Results')
-    data_pred = automl.get_prediction_result()
-    st.dataframe(data_pred.as_data_frame())
+    df_results = automl.get_prediction_result()
+    df_results['prediction'] = df_results['prediction'].apply(lambda x: format(x, '10.2f'))
+    df_results['residual'] = df_results['residual'].apply(lambda x: format(x, '10.2f'))
+    st.dataframe(df_results)
     
     # Display mae 
     mae = automl.get_mae()
-    mae_formatted = "{:.2f}".format(mae)
+    mae_formatted = format(mae, '10.2f')
     
-    st.write(f'''<p style='color: blue;'>On average, our predictions may deviate from the actual sales numbers by up to {mae_formatted} units.
+    st.write(f'''On average, our predictions may deviate from the actual sales numbers by up to <span style='color: green;'>{mae_formatted} units </span>.
                 Therefore, when using our regression for decision-making, we should be aware that the actual value
-                could be below or higher than the predicted values by approximately {mae_formatted} units. Understanding this
-                potential variability allows us to make more informed decisions and account for potential fluctuations in business.</p>''',
+                could be below or higher than the predicted values by approximately <span style='color: blue;'>{mae_formatted} units </span>. Understanding this
+                potential variability allows us to make more informed decisions and account for potential fluctuations in business.''',
                 unsafe_allow_html=True)
-
-    # Show important variables   
-    st.title('Important Factors')
-    st.write(f'Below are some of the most important features that affect our {target_col} value')
-    varimp = automl.get_important_features()
     
-    for count, var in enumerate(varimp, start=1):
-        st.write(f'{count}. {var}')
-
-    # save predicted values as result
-    result = automl.result
+    plot.plot_actual_vs_forecast(df_results, df.index, target_col)
+    
 
 # download predicted results as dataset csv
 st.sidebar.title("3. Download")
@@ -102,3 +101,5 @@ if st.sidebar.button('Delete data'):
         os.remove('./dataset.csv') 
         
 st.sidebar.title("\n\n\n\n")
+
+st.title('Data')
