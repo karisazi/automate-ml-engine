@@ -1,12 +1,11 @@
 import h2o
 from h2o.automl import H2OAutoML
 import pandas as pd
-import matplotlib.pyplot as plt
 from sklearn.metrics import mean_absolute_error
-import warnings
-import locale
-locale.setlocale(locale.LC_ALL, 'en_GB.UTF-8')
-warnings.filterwarnings('ignore')
+# import warnings
+# import locale
+# locale.setlocale(locale.LC_ALL, 'en_GB.UTF-8')
+# warnings.filterwarnings('ignore')
 
 class H2OModel:
     def __init__(self, df, y_target):
@@ -31,7 +30,7 @@ class H2OModel:
         self.x_features = df_processed.columns.tolist()
         self.x_features = [x for x in self.x_features if x != self.y_target]
 
-        aml = H2OAutoML(max_runtime_secs = 600, seed = 42)
+        aml = H2OAutoML(max_runtime_secs = 150, seed = 42)
         aml.train(x=self.x_features, y=self.y_target, training_frame=self.data_train, leaderboard_frame = self.data_test)
         self.model = aml.leader
         self.leaderboard = aml.leaderboard
@@ -44,19 +43,24 @@ class H2OModel:
         return self.leaderboard
     
     def get_prediction_result(self):
-        data_pred_hf = h2o.H2OFrame(self.result)
-        self.data_pred = self.data_test[self.y_target].concat(data_pred_hf, axis=1)
-        self.data_pred['residual'] = self.data_pred[self.y_target] - self.data_pred['predict']
-        self.data_pred.columns = ['ground_truth', 'prediction', 'residual']
+        # data_pred_hf = h2o.H2OFrame(self.result)
+        data_pred = self.data_test[self.y_target].concat(self.result, axis=1)
+        data_pred['Difference'] = data_pred[self.y_target] - data_pred['predict']
+        data_pred.columns = ['ground_truth', 'prediction', 'difference']
+        self.data_pred = data_pred.as_data_frame()
+        return self.data_pred
+        # self.data_pred = self.data_test[self.y_target].concat(data_pred_hf, axis=1)
+        # self.data_pred['residual'] = self.data_pred[self.y_target] - self.data_pred['predict']
+        # self.data_pred.columns = ['ground_truth', 'prediction', 'residual']
     
-        return self.data_pred.as_data_frame()
+        # return self.data_pred.as_data_frame()
         
     def get_mae(self):
-        valid_data_pd = self.data_pred['ground_truth'].as_data_frame()
-        predictions_pd = self.data_pred['prediction'].as_data_frame()
+        # valid_data_pd = self.data_pred['ground_truth'].as_data_frame()
+        # predictions_pd = self.data_pred['prediction'].as_data_frame()
 
         # Calculate MAE
-        mae = mean_absolute_error(valid_data_pd, predictions_pd)
+        mae = mean_absolute_error(self.data_pred['ground_truth'], self.data_pred['prediction'])
         return mae
     
     def get_important_features(self):
